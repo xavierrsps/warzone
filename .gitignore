@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.log
+
+# runtime data (DB, secrets, backups) — never committed
+server/data/
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+.env
+server/.env
