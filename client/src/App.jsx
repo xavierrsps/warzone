@@ -35,7 +35,7 @@ function LoginModal({ onClose }) {
 
 export default function App() {
   const { isAdmin, logout } = useAdmin();
-  const [settings, setSettings] = useState({ clan_name: 'Warzone Manager', ppk: 1, ppw: 10 });
+  const [settings, setSettings] = useState({ clan_name: 'Warzone Manager', ppk: 1, ppw: 10, ppd: 2 });
   const [showLogin, setShowLogin] = useState(false);
 
   const reloadSettings = () => getSettings().then(setSettings).catch(() => {});

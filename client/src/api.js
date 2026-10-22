@@ -7,6 +7,19 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
+// If a stale/invalid admin token is rejected, clear it and reload so the UI
+// drops back to the (correct) logged-out state instead of showing dead buttons.
+api.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 403 && localStorage.getItem('wzAdminToken')) {
+      localStorage.removeItem('wzAdminToken');
+      window.location.reload();
+    }
+    return Promise.reject(err);
+  }
+);
+
 // settings
 export const getSettings = () => api.get('/settings').then(r => r.data);
 export const saveSettings = (d) => api.patch('/settings', d).then(r => r.data);
