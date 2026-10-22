@@ -43,7 +43,7 @@ export default function Roster() {
 
       <div className="card">
         <div className="scroll"><table>
-          <thead><tr><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th>{isAdmin && <th></th>}</tr></thead>
+          <thead><tr><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th><th className="num">Deaths</th>{isAdmin && <th></th>}</tr></thead>
           <tbody>
             {players.map(p => (
               <tr key={p.id}>
@@ -51,6 +51,7 @@ export default function Roster() {
                 <td className="num">{p.games}</td>
                 <td className="num">{p.wins}</td>
                 <td className="num">{p.kills}</td>
+                <td className="num muted">{p.deaths}</td>
                 {isAdmin && (
                   <td className="num">
                     <button className="btn ghost mini" onClick={() => rename(p)} style={{ padding: '4px 10px' }}>Rename</button>{' '}
@@ -59,7 +60,7 @@ export default function Roster() {
                 )}
               </tr>
             ))}
-            {players.length === 0 && <tr><td colSpan={isAdmin ? 5 : 4} className="empty">No players yet.</td></tr>}
+            {players.length === 0 && <tr><td colSpan={isAdmin ? 6 : 5} className="empty">No players yet.</td></tr>}
           </tbody>
         </table></div>
       </div>

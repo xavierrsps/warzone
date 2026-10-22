@@ -14,12 +14,12 @@ export default function AllTime({ settings }) {
   return (
     <>
       <h1 className="h1">All-Time Leaderboard</h1>
-      <p className="sub">Every jam combined · Points = kills × {data.ppk} + wins × {data.ppw}</p>
+      <p className="sub">Every jam combined · Points = kills × {data.ppk} + wins × {data.ppw} − deaths × {data.ppd}</p>
 
       <div className="card">
         {lb.length === 0 ? <div className="empty">No games recorded yet.</div> : (
           <div className="scroll"><table>
-            <thead><tr><th className="rank">#</th><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th><th className="num">K/game</th><th className="num">Points</th></tr></thead>
+            <thead><tr><th className="rank">#</th><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th><th className="num">Deaths</th><th className="num">K/D</th><th className="num">Points</th></tr></thead>
             <tbody>
               {lb.map((r, i) => (
                 <tr key={r.id}>
@@ -28,7 +28,8 @@ export default function AllTime({ settings }) {
                   <td className="num">{r.games}</td>
                   <td className={'num' + (r.wins === maxW && maxW > 0 ? ' lead' : '')}>{r.wins}{r.wins === maxW && maxW > 0 ? ' 🏆' : ''}</td>
                   <td className={'num' + (r.kills === maxK && maxK > 0 ? ' lead' : '')}>{r.kills}{r.kills === maxK && maxK > 0 ? ' 💀' : ''}</td>
-                  <td className="num muted">{r.games ? (r.kills / r.games).toFixed(1) : '0.0'}</td>
+                  <td className="num muted">{r.deaths}</td>
+                  <td className="num muted">{r.deaths ? (r.kills / r.deaths).toFixed(2) : (r.kills ? '∞' : '0.00')}</td>
                   <td className="num pts">{r.points}</td>
                 </tr>
               ))}

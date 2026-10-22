@@ -54,7 +54,8 @@ export function initDb() {
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       jam_id       INTEGER NOT NULL REFERENCES jams(id) ON DELETE CASCADE,
       game_number  INTEGER NOT NULL,
-      winner_team  INTEGER,                          -- team index, or NULL (no winner)
+      winner_team       INTEGER,                     -- first winning team (back-compat)
+      winner_teams_json TEXT NOT NULL DEFAULT '[]',  -- ALL winning teams (multi-lobby)
       created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -79,13 +80,21 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_gp_player         ON game_players(player_id);
   `);
 
-  // ── settings defaults (points-per-kill / points-per-win + admin password) ──
+  // migration: winner_teams_json on an older games table
+  const gcols = d.prepare('PRAGMA table_info(games)').all().map(c => c.name);
+  if (!gcols.includes('winner_teams_json')) {
+    d.exec("ALTER TABLE games ADD COLUMN winner_teams_json TEXT NOT NULL DEFAULT '[]'");
+    d.exec("UPDATE games SET winner_teams_json = '[' || winner_team || ']' WHERE winner_team IS NOT NULL AND winner_teams_json = '[]'");
+  }
+
+  // ── settings defaults (points-per-kill / points-per-win / points-per-death + admin password) ──
   const setIfAbsent = (k, v) => {
     const row = d.prepare('SELECT value FROM settings WHERE key = ?').get(k);
     if (!row) d.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(k, String(v));
   };
   setIfAbsent('ppk', 1);
   setIfAbsent('ppw', 10);
+  setIfAbsent('ppd', 2);
   setIfAbsent('clan_name', process.env.WARZONE_CLAN_NAME || 'Warzone Manager');
 
   // Admin password: env on first boot wins; otherwise a default we print loudly.

@@ -31,7 +31,7 @@ export const jamAddPlayer = (id, body) => api.post(`/jams/${id}/add`, body).then
 export const jamRemovePlayer = (id, player_id) => api.post(`/jams/${id}/remove`, { player_id }).then(r => r.data);
 export const jamRandomize = (id, team_count) => api.post(`/jams/${id}/randomize`, { team_count }).then(r => r.data);
 export const jamSaveTeams = (id, teams, bench) => api.patch(`/jams/${id}/teams`, { teams, bench }).then(r => r.data);
-export const jamSubmitGame = (id, winner_team, kills) => api.post(`/jams/${id}/games`, { winner_team, kills }).then(r => r.data);
+export const jamSubmitGame = (id, winner_teams, kills, deaths) => api.post(`/jams/${id}/games`, { winner_teams, kills, deaths }).then(r => r.data);
 export const getAllTime = () => api.get('/jams/stats/alltime').then(r => r.data);
 
 export default api;

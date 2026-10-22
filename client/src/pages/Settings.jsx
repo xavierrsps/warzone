@@ -5,6 +5,7 @@ export default function Settings({ settings, onSaved }) {
   const [clan, setClan] = useState(settings.clan_name);
   const [ppk, setPpk] = useState(settings.ppk);
   const [ppw, setPpw] = useState(settings.ppw);
+  const [ppd, setPpd] = useState(settings.ppd);
   const [msg, setMsg] = useState('');
 
   const [cur, setCur] = useState('');
@@ -12,7 +13,7 @@ export default function Settings({ settings, onSaved }) {
   const [pwMsg, setPwMsg] = useState('');
 
   const save = async () => {
-    await saveSettings({ clan_name: clan, ppk: Number(ppk), ppw: Number(ppw) });
+    await saveSettings({ clan_name: clan, ppk: Number(ppk), ppw: Number(ppw), ppd: Number(ppd) });
     setMsg('Saved ✓'); onSaved?.(); setTimeout(() => setMsg(''), 2000);
   };
   const doPw = async () => {
@@ -33,6 +34,7 @@ export default function Settings({ settings, onSaved }) {
         <div className="row">
           <div><label className="mini muted">Points per kill</label><br /><input type="number" min="0" value={ppk} onChange={e => setPpk(e.target.value)} style={{ width: 90 }} /></div>
           <div><label className="mini muted">Points per win</label><br /><input type="number" min="0" value={ppw} onChange={e => setPpw(e.target.value)} style={{ width: 90 }} /></div>
+          <div><label className="mini muted">Points per death (−)</label><br /><input type="number" min="0" value={ppd} onChange={e => setPpd(e.target.value)} style={{ width: 90 }} /></div>
         </div>
         <div className="row" style={{ marginTop: 14 }}>
           <button className="btn" onClick={save}>Save</button>

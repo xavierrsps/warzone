@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware/adminAuth.js';
 
 const router = Router();
 
-const rates = () => ({ ppk: Number(getSetting('ppk', 1)), ppw: Number(getSetting('ppw', 10)) });
+const rates = () => ({ ppk: Number(getSetting('ppk', 1)), ppw: Number(getSetting('ppw', 10)), ppd: Number(getSetting('ppd', 2)) });
 const shuffle = (arr) => { const a = [...arr]; for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
 
 // Build the full detail payload for one jam.
@@ -26,14 +26,15 @@ function jamDetail(jamId) {
 // Aggregate leaderboard. Scope by jam (jamId) or all-time (no jamId).
 function leaderboard({ jamId = null } = {}) {
   const db = getDb();
-  const { ppk, ppw } = rates();
+  const { ppk, ppw, ppd } = rates();
   const where = jamId ? 'WHERE g.jam_id = ?' : '';
   const args  = jamId ? [jamId] : [];
   const rows = db.prepare(`
     SELECT p.id, p.name,
-           COALESCE(SUM(gp.kills),0) AS kills,
-           COALESCE(SUM(gp.won),0)   AS wins,
-           COUNT(gp.id)              AS games
+           COALESCE(SUM(gp.kills),0)  AS kills,
+           COALESCE(SUM(gp.deaths),0) AS deaths,
+           COALESCE(SUM(gp.won),0)    AS wins,
+           COUNT(gp.id)               AS games
     FROM game_players gp
     JOIN games g   ON g.id = gp.game_id
     JOIN players p ON p.id = gp.player_id
@@ -41,19 +42,22 @@ function leaderboard({ jamId = null } = {}) {
     GROUP BY p.id
   `).all(...args);
   return rows
-    .map(r => ({ ...r, points: r.kills * ppk + r.wins * ppw }))
+    .map(r => ({ ...r, points: r.kills * ppk + r.wins * ppw - r.deaths * ppd }))
     .sort((a, b) => b.points - a.points || b.wins - a.wins || b.kills - a.kills);
 }
 
-// Per-game matrix for one jam: [{game_number, winner_team, players:{playerId:{kills,won}}}]
+// Per-game matrix for one jam: [{game_number, winners:[teamIdx], players:{playerId:{kills,deaths,won}}}]
 function perGameSheet(jamId) {
   const db = getDb();
   const games = db.prepare('SELECT * FROM games WHERE jam_id = ? ORDER BY game_number').all(jamId);
   const gp = db.prepare('SELECT * FROM game_players WHERE game_id = ?');
   return games.map(g => {
     const players = {};
-    for (const r of gp.all(g.id)) players[r.player_id] = { kills: r.kills, won: r.won, team: r.team };
-    return { id: g.id, game_number: g.game_number, winner_team: g.winner_team, players };
+    for (const r of gp.all(g.id)) players[r.player_id] = { kills: r.kills, deaths: r.deaths, won: r.won, team: r.team };
+    let winners = [];
+    try { winners = JSON.parse(g.winner_teams_json || '[]'); } catch { winners = []; }
+    if (!winners.length && g.winner_team != null) winners = [g.winner_team];
+    return { id: g.id, game_number: g.game_number, winner_team: g.winner_team, winners, players };
   });
 }
 
@@ -157,7 +161,8 @@ router.patch('/:id/teams', requireAdmin, (req, res) => {
   res.json(jamDetail(jam.id));
 });
 
-// POST /api/jams/:id/games { winner_team, kills: { playerId: kills } } -> log a game
+// POST /api/jams/:id/games { winner_teams:[idx], kills:{pid:k}, deaths:{pid:d} } -> log a game
+// (also accepts legacy winner_team: single index/null)
 router.post('/:id/games', requireAdmin, (req, res) => {
   const db = getDb();
   const jam = db.prepare('SELECT * FROM jams WHERE id = ?').get(req.params.id);
@@ -166,19 +171,25 @@ router.post('/:id/games', requireAdmin, (req, res) => {
   const placed = teams.flat();
   if (!placed.length) return res.status(400).json({ error: 'No teams set — randomize first' });
 
-  const winner = req.body?.winner_team;
-  const winnerTeam = (winner === null || winner === undefined) ? null : Number(winner);
-  const kills = req.body?.kills || {};
+  // Resolve winning teams: winner_teams array wins; else back-compat winner_team.
+  let winners = [];
+  if (Array.isArray(req.body?.winner_teams)) winners = req.body.winner_teams.map(Number);
+  else if (req.body?.winner_team !== null && req.body?.winner_team !== undefined) winners = [Number(req.body.winner_team)];
+  winners = [...new Set(winners.filter(t => Number.isInteger(t) && t >= 0 && t < teams.length))];
+
+  const kills  = req.body?.kills  || {};
+  const deaths = req.body?.deaths || {};
 
   const detail = transaction((tx) => {
     const gn = tx.prepare('SELECT COALESCE(MAX(game_number),0)+1 n FROM games WHERE jam_id = ?').get(jam.id).n;
-    const gameId = tx.prepare('INSERT INTO games (jam_id, game_number, winner_team) VALUES (?, ?, ?)')
-      .run(jam.id, gn, winnerTeam).lastInsertRowid;
-    const ins = tx.prepare('INSERT INTO game_players (game_id, player_id, team, kills, won) VALUES (?, ?, ?, ?, ?)');
+    const gameId = tx.prepare('INSERT INTO games (jam_id, game_number, winner_team, winner_teams_json) VALUES (?, ?, ?, ?)')
+      .run(jam.id, gn, winners.length ? winners[0] : null, JSON.stringify(winners)).lastInsertRowid;
+    const ins = tx.prepare('INSERT INTO game_players (game_id, player_id, team, kills, deaths, won) VALUES (?, ?, ?, ?, ?, ?)');
     teams.forEach((team, ti) => {
       for (const pid of team) {
-        const k = Math.max(0, parseInt(kills[pid], 10) || 0);
-        ins.run(gameId, pid, ti, k, winnerTeam === ti ? 1 : 0);
+        const k = Math.max(0, parseInt(kills[pid], 10)  || 0);
+        const d = Math.max(0, parseInt(deaths[pid], 10) || 0);
+        ins.run(gameId, pid, ti, k, d, winners.includes(ti) ? 1 : 0);
       }
     });
     return gn;

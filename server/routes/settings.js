@@ -10,17 +10,19 @@ router.get('/', (_req, res) => {
     clan_name: getSetting('clan_name', 'Warzone Manager'),
     ppk: Number(getSetting('ppk', 1)),
     ppw: Number(getSetting('ppw', 10)),
+    ppd: Number(getSetting('ppd', 2)),
   });
 });
 
-// PATCH /api/settings { clan_name?, ppk?, ppw? } (admin)
+// PATCH /api/settings { clan_name?, ppk?, ppw?, ppd? } (admin)
 router.patch('/', requireAdmin, (req, res) => {
-  const { clan_name, ppk, ppw } = req.body || {};
+  const { clan_name, ppk, ppw, ppd } = req.body || {};
   if (clan_name !== undefined) setSetting('clan_name', String(clan_name).trim() || 'Warzone Manager');
   if (ppk !== undefined) setSetting('ppk', Math.max(0, parseInt(ppk, 10) || 0));
   if (ppw !== undefined) setSetting('ppw', Math.max(0, parseInt(ppw, 10) || 0));
+  if (ppd !== undefined) setSetting('ppd', Math.max(0, parseInt(ppd, 10) || 0));
   res.json({
-    clan_name: getSetting('clan_name'), ppk: Number(getSetting('ppk')), ppw: Number(getSetting('ppw')),
+    clan_name: getSetting('clan_name'), ppk: Number(getSetting('ppk')), ppw: Number(getSetting('ppw')), ppd: Number(getSetting('ppd')),
   });
 });
 

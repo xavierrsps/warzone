@@ -9,6 +9,7 @@ router.get('/', (_req, res) => {
   const rows = getDb().prepare(`
     SELECT p.id, p.name, p.active,
            COALESCE(SUM(gp.kills), 0)        AS kills,
+           COALESCE(SUM(gp.deaths), 0)       AS deaths,
            COALESCE(SUM(gp.won), 0)          AS wins,
            COUNT(gp.id)                       AS games
     FROM players p

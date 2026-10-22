@@ -13,7 +13,8 @@ export default function Tonight({ settings }) {
   const [names, setNames] = useState({});     // id -> name
   const [sel, setSel] = useState(null);        // {where, pid}
   const [draft, setDraft] = useState({});      // pid -> kills (this round)
-  const [pendingWin, setPendingWin] = useState(null);
+  const [draftD, setDraftD] = useState({});    // pid -> deaths (this round)
+  const [pendingWins, setPendingWins] = useState([]);  // winning team indices (multi-lobby)
   const [teamCount, setTeamCount] = useState(3);
   const [addName, setAddName] = useState('');
   const [summary, setSummary] = useState('');
@@ -70,7 +71,7 @@ export default function Tonight({ settings }) {
   };
   const quickAdd = async (pid) => afterWrite(await jamAddPlayer(jamId, { player_id: pid }));
   const doRemove = async (pid) => { setSel(null); afterWrite(await jamRemovePlayer(jamId, pid)); };
-  const doRandomize = async () => { setSel(null); setPendingWin(null); afterWrite(await jamRandomize(jamId, teamCount)); };
+  const doRandomize = async () => { setSel(null); setPendingWins([]); afterWrite(await jamRandomize(jamId, teamCount)); };
   const saveArrangement = async (teams, bench) => { pauseUntil.current = Date.now() + 1500; setJam(j => ({ ...j, teams, bench })); afterWrite(await jamSaveTeams(jamId, teams, bench)); };
 
   const listOf = (where, teams, bench) => where === 'bench' ? bench : teams[where];
@@ -93,12 +94,15 @@ export default function Tonight({ settings }) {
   };
 
   const setKill = (pid, v) => setDraft(d => { const n = { ...d }; const k = parseInt(v, 10); if (isNaN(k)) delete n[pid]; else n[pid] = k; return n; });
+  const setDeath = (pid, v) => setDraftD(d => { const n = { ...d }; const k = parseInt(v, 10); if (isNaN(k)) delete n[pid]; else n[pid] = k; return n; });
 
   const submit = async () => {
-    const d = await jamSubmitGame(jamId, pendingWin, draft);
-    const winNames = pendingWin != null && jam.teams[pendingWin] ? jam.teams[pendingWin].map(nameOf).join(', ') : null;
-    setSummary(winNames ? `✅ Game ${d.game_number} logged — Winner: Team ${pendingWin + 1} (${winNames}) +1 win each.` : `✅ Game ${d.game_number} logged — no winner.`);
-    setDraft({}); setPendingWin(null); afterWrite(d);
+    const d = await jamSubmitGame(jamId, pendingWins, draft, draftD);
+    const winNames = pendingWins.length
+      ? pendingWins.map(ti => `Team ${ti + 1} (${(jam.teams[ti] || []).map(nameOf).join(', ')})`).join(' + ')
+      : null;
+    setSummary(winNames ? `✅ Game ${d.game_number} logged — Winner: ${winNames} +1 win each.` : `✅ Game ${d.game_number} logged — no winner.`);
+    setDraft({}); setDraftD({}); setPendingWins([]); afterWrite(d);
   };
 
   if (!jamId && !jam) {
@@ -129,7 +133,7 @@ export default function Tonight({ settings }) {
         </div>
         <div className="row">
           {jams.length > 1 && (
-            <select value={jamId} onChange={e => { setJamId(Number(e.target.value)); setSel(null); setDraft({}); setPendingWin(null); }}>
+            <select value={jamId} onChange={e => { setJamId(Number(e.target.value)); setSel(null); setDraft({}); setDraftD({}); setPendingWins([]); }}>
               {jams.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
             </select>
           )}
@@ -190,13 +194,13 @@ export default function Tonight({ settings }) {
       {jam.teams.length > 0 && (
         <div className="teams">
           {jam.teams.map((team, ti) => (
-            <div className={'team' + (pendingWin === ti ? ' winner' : '')} key={ti} onClick={() => moveToGroup(ti)}>
+            <div className={'team' + (pendingWins.includes(ti) ? ' winner' : '')} key={ti} onClick={() => moveToGroup(ti)}>
               <div className="th">
                 <h3>Team {ti + 1} · {team.length}</h3>
                 {isAdmin && jam.status === 'open' && (
-                  <button className={'wintoggle' + (pendingWin === ti ? ' on' : '')}
-                    onClick={e => { e.stopPropagation(); setPendingWin(pendingWin === ti ? null : ti); }}>
-                    🏆 {pendingWin === ti ? 'Winner ✓' : 'Winner'}
+                  <button className={'wintoggle' + (pendingWins.includes(ti) ? ' on' : '')}
+                    onClick={e => { e.stopPropagation(); setPendingWins(w => w.includes(ti) ? w.filter(x => x !== ti) : [...w, ti]); }}>
+                    🏆 {pendingWins.includes(ti) ? 'Winner ✓' : 'Winner'}
                   </button>
                 )}
               </div>
@@ -206,9 +210,11 @@ export default function Tonight({ settings }) {
                     onClick={e => { e.stopPropagation(); pick(ti, pid); }}>
                     <span>{nameOf(pid)}</span>
                     {isAdmin && jam.status === 'open' && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-                        <input className="k" type="number" min="0" placeholder="K"
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={e => e.stopPropagation()}>
+                        <input className="k" type="number" min="0" placeholder="K" title="Kills"
                           value={draft[pid] ?? ''} onChange={e => setKill(pid, e.target.value)} />
+                        <input className="k" type="number" min="0" placeholder="D" title="Deaths"
+                          value={draftD[pid] ?? ''} onChange={e => setDeath(pid, e.target.value)} />
                         <span className="rm" title="remove" onClick={() => doRemove(pid)}>✕</span>
                       </span>
                     )}
@@ -235,7 +241,7 @@ export default function Tonight({ settings }) {
         <h2>🏆 Tonight's leaderboard</h2>
         {lb.length === 0 ? <div className="empty">No games logged yet.</div> : (
           <div className="scroll"><table>
-            <thead><tr><th className="rank">#</th><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th><th className="num">Points</th></tr></thead>
+            <thead><tr><th className="rank">#</th><th>Player</th><th className="num">Games</th><th className="num">Wins</th><th className="num">Kills</th><th className="num">Deaths</th><th className="num">Points</th></tr></thead>
             <tbody>
               {lb.map((r, i) => (
                 <tr key={r.id}>
@@ -244,13 +250,14 @@ export default function Tonight({ settings }) {
                   <td className="num">{r.games}</td>
                   <td className={'num' + (r.wins === maxW && maxW > 0 ? ' lead' : '')}>{r.wins}{r.wins === maxW && maxW > 0 ? ' 🏆' : ''}</td>
                   <td className={'num' + (r.kills === maxK && maxK > 0 ? ' lead' : '')}>{r.kills}{r.kills === maxK && maxK > 0 ? ' 💀' : ''}</td>
+                  <td className="num muted">{r.deaths}</td>
                   <td className="num pts">{r.points}</td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         )}
-        <div className="mini muted" style={{ marginTop: 8 }}>Points = kills × {settings.ppk} + wins × {settings.ppw}.</div>
+        <div className="mini muted" style={{ marginTop: 8 }}>Points = kills × {settings.ppk} + wins × {settings.ppw} − deaths × {settings.ppd}.</div>
       </div>
 
       {/* per-game sheet */}
@@ -265,8 +272,8 @@ export default function Tonight({ settings }) {
                 const cells = jam.sheet.map(g => {
                   const e = g.players[r.id];
                   if (!e) return <td key={g.id} className="num muted">–</td>;
-                  const p = e.kills * settings.ppk + (e.won ? settings.ppw : 0); tot += p;
-                  return <td key={g.id} className="num">{e.won ? '🟡 ' : ''}{p} <span className="muted mini">({e.kills}k)</span></td>;
+                  const p = e.kills * settings.ppk + (e.won ? settings.ppw : 0) - (e.deaths || 0) * settings.ppd; tot += p;
+                  return <td key={g.id} className="num">{e.won ? '🟡 ' : ''}{p} <span className="muted mini">({e.kills}k/{e.deaths || 0}d)</span></td>;
                 });
                 return <tr key={r.id}><td>{r.name}</td>{cells}<td className="num pts">{tot}</td></tr>;
               })}
