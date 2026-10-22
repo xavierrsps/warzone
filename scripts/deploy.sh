@@ -9,9 +9,9 @@ export PATH="$NODE_BIN:$PATH"
 
 cd "$APP_DIR"
 
-echo "==> [1/5] Pull latest (origin/main)"
+echo "==> [1/5] Pull latest (origin/master)"
 git fetch --quiet origin
-git reset --hard origin/main   # tracked source only; server/data & node_modules & dist are gitignored
+git reset --hard origin/master   # tracked source only; server/data & node_modules & dist are gitignored
 
 echo "==> [2/5] Install deps (server + client)"
 npm install --prefix server --no-audit --no-fund --silent
