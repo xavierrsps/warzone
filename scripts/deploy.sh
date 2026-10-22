@@ -24,13 +24,13 @@ echo "==> [4/5] Restart app (PM2)"
 if pm2 describe warzone >/dev/null 2>&1; then
   pm2 restart warzone --update-env
 else
-  PORT=3003 pm2 start server/index.js --name warzone --update-env
+  PORT=3002 pm2 start server/index.js --name warzone --update-env
 fi
 pm2 save
 
 echo "==> [5/5] Health check"
 sleep 3
-CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3003/api/health)
+CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3002/api/health)
 echo "HTTP $CODE"
 [ "$CODE" = "200" ] || { echo "!! Health check FAILED. pm2 logs warzone"; exit 1; }
-echo "Deploy OK — live on :3003 at $(git rev-parse --short HEAD)"
+echo "Deploy OK — live on :3002 at $(git rev-parse --short HEAD)"
